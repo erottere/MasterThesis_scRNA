@@ -1,0 +1,1721 @@
+---
+title: "snRNA combined sampels"
+author: "Elise Røttereng"
+date: "2026-02-11"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Trying all samples combined!
+
+
+# Set seed
+
+```{r set seed}
+
+set.seed(14)
+
+```
+
+set.seed do not work on UMAP
+
+
+# Install Packages
+
+```{r install packages}
+
+.libPaths(c(
+  "C:/Users/elise/AppData/Local/R/win-library/4.5",
+  "C:/Rlibs",
+  "C:/Program Files/R/R-4.5.1/library"))
+
+suppressPackageStartupMessages(library(scDblFinder))
+
+library(tidyverse)
+library(Seurat)
+library(DropletUtils)
+library(patchwork)
+library(presto)
+library(readxl)
+library(biomaRt)
+library(purrr)
+library(janitor)
+library(rcartocolor)
+library(Matrix)
+library(pheatmap)
+library(harmony)
+library(speckle)
+
+```
+
+
+# Load the Data
+
+Use ReadMtx(). Tells Seurat explicitly which files to use. 
+
+```{r load data}
+
+sample1_data <- ReadMtx(
+  mtx = "raw1/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw1/features.tsv.gz",
+  cells = "raw1/barcodes.tsv.gz",
+  feature.column = 1) #chooses gene name as row names
+
+sample2_data <- ReadMtx(
+  mtx = "raw2/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw2/features.tsv.gz",
+  cells = "raw2/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample3_data <- ReadMtx(
+  mtx = "raw3/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw3/features.tsv.gz",
+  cells = "raw3/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample5_data <- ReadMtx(
+  mtx = "raw5/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw5/features.tsv.gz",
+  cells = "raw5/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample7_data <- ReadMtx(
+  mtx = "raw7/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw7/features.tsv.gz",
+  cells = "raw7/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample9_data <- ReadMtx(
+  mtx = "raw9/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw9/features.tsv.gz",
+  cells = "raw9/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample10_data <- ReadMtx(
+  mtx = "raw10/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw10/features.tsv.gz",
+  cells = "raw10/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample11_data <- ReadMtx(
+  mtx = "raw11/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw11/features.tsv.gz",
+  cells = "raw11/barcodes.tsv.gz",
+  feature.column = 1)
+
+sample12_data <- ReadMtx(
+  mtx = "raw12/UniqueAndMult-PropUnique.mtx.gz",
+  features = "raw12/features.tsv.gz",
+  cells = "raw12/barcodes.tsv.gz",
+  feature.column = 1)
+
+```
+
+Special matrix where "0" are "." instead to make the object smaller.
+
+Can run e.g. "data_set[1000:1020, 1000:1020]" to see
+
+
+# Gather samples
+
+```{r gather samples}
+
+gc()
+
+# Put samples into a list
+samples <- list(
+  sample1 = sample1_data,
+  sample2 = sample2_data,
+  sample3 = sample3_data,
+  sample5 = sample5_data,
+  sample7 = sample7_data,
+  sample9 = sample9_data,
+  sample10 = sample10_data,
+  sample11 = sample11_data,
+  sample12 = sample12_data)
+
+```
+
+
+# Sum of all counts for every gene
+
+Kinda remove the cells, so that I can compare with the bulk RNA
+
+```{r sum counts}
+
+# Make function
+sum_per_gene <- function(mat) {
+  rowSums(mat)
+}
+
+# Sum counts for every gene
+sum_list <- lapply(samples, sum_per_gene)
+
+# Make into a matrix
+sum_matrix <- do.call(cbind, sum_list)
+
+```
+
+
+# Save and Download
+
+Save as R object
+
+```{r save}
+
+save(sum_matrix, file = "all_couts_genes_object.RData")
+
+```
+
+Downlaod
+
+```{r load}
+
+load(file = "all_couts_genes_object.RData")
+
+```
+
+Clean up
+
+```{r remove}
+
+rm(sum_per_gene, sum_list, sum_matrix)
+
+```
+
+
+# Remove empty droplets and low counts
+
+This needs to be done before we can remove doublets
+
+Get bar code information.
+
+Make a function that gets the information from all samples
+
+```{r information funk}
+
+# Function that gets the knee and inflection for counts and features
+barcode_funk <- function(x){
+  
+  # Counts
+  br_counts <- barcodeRanks(x)
+  
+  # Features
+  
+  br_features <- barcodeRanks(x > 0)
+  
+  # Knee and inflection
+  
+  list(
+    counts = list(
+      br = br_counts,
+      knee = metadata(br_counts)$knee,
+      inflection = metadata(br_counts)$inflection),
+    features = list(
+      br = br_features,
+      knee = metadata(br_features)$knee,
+      inflection = metadata(br_features)$inflection))
+}
+
+```
+
+Run the function
+
+```{r run funk}
+
+gc()
+
+barcode_info <- lapply(samples, barcode_funk)
+
+```
+
+Make a function that plot the barcodes and their cutoff values
+
+```{r plot function}
+
+plot_barcode <- function(br_obj, ylab, main_title) {
+  
+  # Get knee and inflection
+  
+  knee <- metadata(br_obj)$knee
+  inflection <- metadata(br_obj)$inflection
+  
+  # Convert to data frame and sort
+  
+  df <- as.data.frame(br_obj)
+  df <- df[order(df$rank), ]
+  
+  # Remove empty barcodes
+  
+  df <- df[df$total > 0, ]
+  
+  # Plot
+  
+  plot(df$rank,
+       df$total,
+       log = "xy",
+       xlab = "Cell rank",
+       ylab = ylab,
+       pch = 16,
+       col = "#1D6996",
+       main = main_title)
+  
+  if (!is.null(inflection))
+    abline(h = inflection, col = "grey", lty = 2)
+  
+  if (!is.null(knee))
+    abline(h = knee, col = "black", lty = 2)
+  
+  recordPlot()
+}
+```
+
+Plot
+
+```{r plot}
+
+gc()
+
+# Sample 1
+barcode1_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample1$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 1 - Features")
+
+# Sample 2
+barcode2_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample2$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 2 - Features")
+
+# Sample 3
+barcode3_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample3$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 3 - Features")
+
+# Sample 5
+barcode5_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample5$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 5 - Features")
+
+# Sample 7
+barcode7_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample7$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 7 - Features")
+
+# Sample 9
+barcode9_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample9$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 9 - Features")
+
+# Sample 10
+barcode10_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample10$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 10 - Features")
+
+# Sample 11
+barcode11_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample11$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 11 - Features")
+
+# Sample 12
+barcode12_features_plot <- plot_barcode(
+  br_obj = barcode_info$sample12$features$br,
+  ylab = "Features",
+  main_title = "Barcode Rank 12 - Features")
+
+```
+
+Decide which barcodes to keep
+
+Keeping the inflection values on the features
+
+```{r keep}
+
+gc()
+
+# Keeping barcodes
+
+# Sample 1
+br1_features <- barcode_info$sample1$features$br
+inflection1 <- barcode_info$sample1$features$inflection
+
+keep_barcodes1 <- colnames(sample1_data)[br1_features$total >= inflection1]
+
+# Sample 2
+br2_features <- barcode_info$sample2$features$br
+inflection2 <- barcode_info$sample2$features$inflection
+
+keep_barcodes2 <- colnames(sample2_data)[br2_features$total >= inflection2]
+
+# Sample 3
+br3_features <- barcode_info$sample3$features$br
+inflection3 <- barcode_info$sample3$features$inflection
+
+keep_barcodes3 <- colnames(sample3_data)[br3_features$total >= inflection3]
+
+# Sample 5
+br5_features <- barcode_info$sample5$features$br
+inflection5 <- barcode_info$sample5$features$inflection
+
+keep_barcodes5 <- colnames(sample5_data)[br5_features$total >= inflection5]
+
+# Sample 7
+br7_features <- barcode_info$sample7$features$br
+inflection7 <- barcode_info$sample7$features$inflection
+
+keep_barcodes7 <- colnames(sample7_data)[br7_features$total >= inflection7]
+
+# Sample 9
+br9_features <- barcode_info$sample9$features$br
+inflection9 <- barcode_info$sample9$features$inflection
+
+keep_barcodes9 <- colnames(sample9_data)[br9_features$total >= inflection9]
+
+# Sample 10
+br10_features <- barcode_info$sample10$features$br
+inflection10 <- barcode_info$sample10$features$inflection
+
+keep_barcodes10 <- colnames(sample10_data)[br10_features$total >= inflection10]
+
+# Sample 11
+br11_features <- barcode_info$sample11$features$br
+inflection11 <- barcode_info$sample11$features$inflection
+
+keep_barcodes11 <- colnames(sample11_data)[br11_features$total >= inflection11]
+
+# Sample 12
+br12_features <- barcode_info$sample12$features$br
+inflection12 <- barcode_info$sample12$features$inflection
+
+keep_barcodes12 <- colnames(sample12_data)[br12_features$total >= inflection12]
+
+```
+
+Remove objects that are no longer useful
+
+```{r clean up}
+
+rm(barcode_funk, plot_barcode, inflection1, inflection2, inflection3, inflection5, inflection7, inflection9, inflection10, inflection11, inflection12, br1_features, br2_features, br3_features, br5_features, br7_features, br9_features, br10_features, br11_features, br12_features, samples)
+
+```
+
+
+# Make Seurat Object
+
+After having removed the empty droplets, do not used the min.cells or the min.features, because they have already been filtered out.
+
+```{r seurat object}
+
+gc()
+
+seu1 <- CreateSeuratObject(
+  counts = sample1_data[, keep_barcodes1],
+  project = "sample1")
+
+seu2 <- CreateSeuratObject(
+  counts = sample2_data[, keep_barcodes2],
+  project = "sample2")
+
+seu3 <- CreateSeuratObject(
+  counts = sample3_data[, keep_barcodes3],
+  project = "sample3")
+
+seu5 <- CreateSeuratObject(
+  counts = sample5_data[, keep_barcodes5],
+  project = "sample5")
+
+seu7 <- CreateSeuratObject(
+  counts = sample7_data[, keep_barcodes7],
+  project = "sample7")
+
+seu9 <- CreateSeuratObject(
+  counts = sample9_data[, keep_barcodes9],
+  project = "sample9")
+
+seu10 <- CreateSeuratObject(
+  counts = sample10_data[, keep_barcodes10],
+  project = "sample10")
+
+seu11 <- CreateSeuratObject(
+  counts = sample11_data[, keep_barcodes11],
+  project = "sample11")
+
+seu12 <- CreateSeuratObject(
+  counts = sample12_data[, keep_barcodes12],
+  project = "sample12")
+
+```
+
+Remove unnecessary objects 
+
+```{r clean up}
+
+rm(sample1_data, sample2_data, sample3_data, sample5_data, sample7_data, sample9_data, sample10_data, sample11_data, sample12_data, keep_barcodes1, keep_barcodes2, keep_barcodes3, keep_barcodes5, keep_barcodes7, keep_barcodes9, keep_barcodes10, keep_barcodes11, keep_barcodes12)
+
+```
+
+ 
+# Removing doublets
+
+Prepare the inputs: a SingleCellExperiment object
+
+```{r make SCE object}
+
+gc()
+
+sce1 <- as.SingleCellExperiment(seu1)
+
+sce2 <- as.SingleCellExperiment(seu2)
+
+sce3 <- as.SingleCellExperiment(seu3)
+
+sce5 <- as.SingleCellExperiment(seu5)
+
+sce7 <- as.SingleCellExperiment(seu7)
+
+sce9 <- as.SingleCellExperiment(seu9)
+
+sce10 <- as.SingleCellExperiment(seu10)
+
+sce11 <- as.SingleCellExperiment(seu11)
+
+sce12 <- as.SingleCellExperiment(seu12)
+
+```
+
+Run scDoubletFinder
+
+```{r run dobletFinder}
+
+gc()
+
+sce1 <- scDblFinder(sce1) #Can add expected number of doublets
+
+sce2 <- scDblFinder(sce2) 
+
+sce3 <- scDblFinder(sce3) 
+
+sce5 <- scDblFinder(sce5)
+
+sce7 <- scDblFinder(sce7)
+
+sce9 <- scDblFinder(sce9)
+
+sce10 <- scDblFinder(sce10)
+
+sce11 <- scDblFinder(sce11)
+
+sce12 <- scDblFinder(sce12)
+
+```
+
+Add the labels back to the Seurat object
+
+Need to add the cell_IDs as row names
+
+Extract the metadata
+
+```{r extract metadata}
+
+gc()
+
+meta_scdblfinder1 <- sce1@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder2 <- sce2@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder3 <- sce3@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder5 <- sce5@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder7 <- sce7@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder9 <- sce9@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder10 <- sce10@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder11 <- sce11@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+meta_scdblfinder12 <- sce12@colData@listData %>% as.data.frame() %>% dplyr::select(starts_with('scDblFinder'))
+
+```
+
+Change row names to cell-IDs
+
+```{r change rownames}
+
+rownames(meta_scdblfinder1) <- sce1@colData@rownames
+
+rownames(meta_scdblfinder2) <- sce2@colData@rownames
+
+rownames(meta_scdblfinder3) <- sce3@colData@rownames
+
+rownames(meta_scdblfinder5) <- sce5@colData@rownames
+
+rownames(meta_scdblfinder7) <- sce7@colData@rownames
+
+rownames(meta_scdblfinder9) <- sce9@colData@rownames
+
+rownames(meta_scdblfinder10) <- sce10@colData@rownames
+
+rownames(meta_scdblfinder11) <- sce11@colData@rownames
+
+rownames(meta_scdblfinder12) <- sce12@colData@rownames
+
+```
+
+Add metadata to the seurat object
+
+```{r meta seurat}
+
+gc()
+
+seu1 <- AddMetaData(object = seu1, metadata = meta_scdblfinder1 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score')) 
+
+seu2 <- AddMetaData(object = seu2, metadata = meta_scdblfinder2 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score')) 
+
+seu3 <- AddMetaData(object = seu3, metadata = meta_scdblfinder3 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score')) 
+
+seu5 <- AddMetaData(object = seu5, metadata = meta_scdblfinder5 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score'))
+
+seu7 <- AddMetaData(object = seu7, metadata = meta_scdblfinder7 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score'))
+
+seu9 <- AddMetaData(object = seu9, metadata = meta_scdblfinder9 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score'))
+
+seu10 <- AddMetaData(object = seu10, metadata = meta_scdblfinder10 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score'))
+
+seu11 <- AddMetaData(object = seu11, metadata = meta_scdblfinder11 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score'))
+
+seu12 <- AddMetaData(object = seu12, metadata = meta_scdblfinder12 %>% dplyr::select('scDblFinder.class', 'scDblFinder.score'))
+
+```
+
+Remove objects
+
+```{r clean}
+
+# Remove temporary variables to free up memory 
+rm(meta_scdblfinder1, meta_scdblfinder2, meta_scdblfinder3, meta_scdblfinder5, meta_scdblfinder7, meta_scdblfinder9, meta_scdblfinder10, meta_scdblfinder11, meta_scdblfinder12, sce1, sce2, sce3, sce5, sce7, sce9, sce10, sce11, sce12)
+
+```
+
+Remove the doublets
+
+```{r remove}
+
+gc()
+
+seu1 <- subset(seu1, subset = scDblFinder.class == 'singlet') 
+
+seu2 <- subset(seu2, subset = scDblFinder.class == 'singlet') 
+
+seu3 <- subset(seu3, subset = scDblFinder.class == 'singlet') 
+
+seu5 <- subset(seu5, subset = scDblFinder.class == 'singlet') 
+
+seu7 <- subset(seu7, subset = scDblFinder.class == 'singlet') 
+
+seu9 <- subset(seu9, subset = scDblFinder.class == 'singlet') 
+
+seu10 <- subset(seu10, subset = scDblFinder.class == 'singlet') 
+
+seu11 <- subset(seu11, subset = scDblFinder.class == 'singlet') 
+
+seu12 <- subset(seu12, subset = scDblFinder.class == 'singlet') 
+
+```
+
+
+# Identify and removing Mitochondria
+
+Identify
+
+```{r meta data}
+
+gc()
+
+seu1[["percent.mt"]] <- PercentageFeatureSet(seu1, pattern = "^MT-")
+
+seu2[["percent.mt"]] <- PercentageFeatureSet(seu2, pattern = "^MT-")
+
+seu3[["percent.mt"]] <- PercentageFeatureSet(seu3, pattern = "^MT-")
+
+seu5[["percent.mt"]] <- PercentageFeatureSet(seu5, pattern = "^MT-")
+
+seu7[["percent.mt"]] <- PercentageFeatureSet(seu7, pattern = "^MT-")
+
+seu9[["percent.mt"]] <- PercentageFeatureSet(seu9, pattern = "^MT-")
+
+seu10[["percent.mt"]] <- PercentageFeatureSet(seu10, pattern = "^MT-")
+
+seu11[["percent.mt"]] <- PercentageFeatureSet(seu11, pattern = "^MT-")
+
+seu12[["percent.mt"]] <- PercentageFeatureSet(seu12, pattern = "^MT-")
+
+```
+
+Removing 
+
+```{r removing}
+
+gc()
+
+seu1 <- subset(seu1, subset = percent.mt < 1)
+
+seu2 <- subset(seu2, subset = percent.mt < 1)
+
+seu3 <- subset(seu3, subset = percent.mt < 1)
+
+seu5 <- subset(seu5, subset = percent.mt < 1)
+
+seu7 <- subset(seu7, subset = percent.mt < 1)
+
+seu9 <- subset(seu9, subset = percent.mt < 1)
+
+seu10 <- subset(seu10, subset = percent.mt < 1)
+
+seu11 <- subset(seu11, subset = percent.mt < 1)
+
+seu12 <- subset(seu12, subset = percent.mt < 1)
+
+```
+
+
+# Merging the samples
+
+```{r merge}
+
+seu_merged <- merge(seu1, y = c(seu2, seu3, seu5, seu7, seu9, seu10, seu11, seu12), 
+                    add.cell.ids = c("sample1", "sample2", "sample3", "sample5", "sample7", "sample9", "sample10", "sample11", "sample12"),
+                    project = "sampleIntegrated")
+
+```
+
+Amount of cells per sample
+
+```{r look}
+
+table(seu_merged$orig.ident)
+
+seu_merged$orig.ident <- factor(
+  seu_merged$orig.ident,
+  levels = c("sample1", "sample2", "sample3", "sample5",
+             "sample7", "sample9", "sample10",
+             "sample11", "sample12"))
+
+cellnumber_df <- as.data.frame(table(seu_merged$orig.ident))
+colnames(cellnumber_df) <- c("Sample", "Cells")
+
+ggplot(cellnumber_df, aes(x = Sample, y = Cells, fill = Sample)) +
+  geom_bar(stat = "identity") +
+  theme_minimal() +
+  labs(x = "Sample", y = "Number of cells") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none")
+
+```
+
+Remove objects
+
+```{r clean up}
+rm(seu1, seu2, seu3, seu5, seu7, seu9, seu10, seu11, seu12)
+```
+
+
+# Save and Downlaod 
+
+```{r save}
+
+save(seu_merged, file = "merged_object.RData")
+
+```
+
+```{r Load}
+
+load(file = "merged_object.RData")
+
+```
+
+
+
+# Normalizing the Data
+
+```{r normalizing data}
+
+seu_merged <- NormalizeData(seu_merged, normalization.method = "LogNormalize", scale.factor = 10000)
+
+```
+
+
+# Identification of Highly Variable Features (feature selection)
+
+```{r variable features}
+
+seu_merged <- FindVariableFeatures(seu_merged, selection.method = "vst", nfeatures = 2000)
+
+```
+
+
+# Scaling
+
+Linear transformation - makes mean expression 0, scale expression so variance across cells is 1 (highly expressed genes do not dominate), and more. Remove unwanted source of variation (e.g technical variation, variation because of cell cycle)
+
+```{r scaling}
+
+gc()
+
+seu_merged <- ScaleData(seu_merged)
+
+```
+
+
+# Linear Dimension Reduction
+
+Preform PCA. 
+
+```{r PCA}
+
+gc()
+
+seu_merged <- RunPCA(seu_merged)
+
+```
+
+Make elbow plot
+
+```{r elbow plot}
+
+gc()
+
+elbow_plot <- ElbowPlot(seu_merged)
+
+elbow_plot
+
+```
+
+
+# Cluster the Cells
+
+Uses K-nearest neighbor using euclidean distance in the PCA space, and Jaccard similarity.
+
+```{r cluster cells}
+
+# Find Neighbors
+seu_merged <- FindNeighbors(seu_merged, dims = 1:12, reduction = "pca")
+
+# Find Clusters
+seu_merged <- FindClusters(seu_merged, resolution = 0.4, cluster.name = "mergedClusters")
+
+head(Idents(seu_merged), 5)
+
+```
+
+
+# Non-Linear Dimention Reductrion (UMAP)
+
+```{r UMAP}
+
+gc()
+
+seu_merged <- RunUMAP(seu_merged, dims = 1:12, reduction = "pca", reduction.name = "mergedUMAP")
+
+```
+
+
+# Save and laod
+
+```{r save}
+
+save(seu_merged, file = "merged_UMAP_object.RData")
+
+```
+
+```{r Load}
+
+load(file = "merged_UMAP_object.RData")
+
+```
+
+# Plot
+
+Plot
+
+```{r plot UMAP}
+
+seu_merged$orig.ident <- factor(
+  seu_merged$orig.ident,
+  levels = c("sample1", "sample2", "sample3", "sample5",
+             "sample7", "sample9", "sample10",
+             "sample11", "sample12"))
+
+merged_umap_plot <- DimPlot(seu_merged, reduction = "mergedUMAP", group.by = "orig.ident") + 
+  NoAxes() +
+  theme_void()
+  
+merged_umap_plot
+
+```
+
+
+# Sample Integration
+
+```{r integration}
+
+seu_integrated <- IntegrateLayers(object = seu_merged, method = HarmonyIntegration, orig.reduction = "pca", new.reduction = "harmony", verbose = T)
+
+```
+
+
+# Save and laod
+
+```{r save}
+
+save(seu_integrated, file = "integrated_object.RData")
+
+```
+
+```{r Load}
+
+load(file = "integrated_object.RData")
+
+```
+
+
+# Find clusters
+
+Find neighbors 
+
+```{r neighbors}
+
+gc()
+
+seu_integrated <- FindNeighbors(seu_integrated, reduction = "harmony", dims = 1:12)
+
+```
+
+Cluster
+
+```{r clusters}
+
+seu_integrated <- FindClusters(seu_integrated, resolution = 0.4, cluster.name = "integratedClusters")
+
+```
+
+
+# Run UMAP
+
+```{r UMAP}
+
+gc()
+
+seu_integrated <- RunUMAP(seu_integrated, reduction = "harmony", dims = 1:12, reduction.name = "integratedUMAP")
+
+```
+
+
+# Save and laod
+
+```{r save}
+
+save(seu_integrated, file = "integrated_UMAP_object.RData")
+
+```
+
+Load
+
+```{r Load}
+
+load(file = "integrated_UMAP_object.RData")
+
+```
+
+# Plot
+
+```{r plot}
+
+integrated_umap_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", group.by = "orig.ident") + 
+  NoAxes() +
+  theme_void()
+
+integrated_umap_plot
+
+```
+
+Plot UMAP with cluster number
+
+```{r plot cluster}
+
+integrated_cluster_umap_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", label = T) + 
+  NoAxes() +
+  theme_void()
+
+integrated_cluster_umap_plot
+
+```
+
+Expression
+
+```{r expresson}
+
+FeaturePlot(seu_integrated, features = "nFeature_RNA", reduction = "integratedUMAP", min.cutoff = "q05", max.cutoff = "q95") + 
+  NoAxes() +
+  theme_void() 
+
+```
+
+Doublet score
+
+```{r doublet score }
+
+FeaturePlot(seu_integrated, features = 'scDblFinder.score')
+
+```
+
+Look at where there is mitochondria gene expression, it is not suppose to be here. Look where they have maybe attached themselves to nuclei. Mess with things. 
+
+```{r mitochondria}
+
+FeaturePlot(seu_integrated, features = "MT-CYTB")
+
+```
+
+Better than FeaturePlot function
+
+```{r function}
+
+# Color pallet
+sccol <- (colorRampPalette(c(carto_pal(7, "Sunset"))))(50) #gene expression color scale
+
+
+# FeaturePlot-like for a Seurat v5 object:
+
+# scplot5("nCount_RNA", seuratobject, sccol)
+
+# scplot5(expressionvalues, seuratobject, sccol, extradata = T)
+
+# Always plots the most interesting cells (with high expression) over less interesting cells :)
+
+
+
+#diverging = F makes color gradient, pch = points, cex = point size, add = F makes a new plot, extradata for when the genes are not gene names
+
+scplot5 <- function(gene, dataset, xcol, diverging = FALSE, pch = 16,
+                    cex = 1, add = FALSE, extradata = FALSE,
+                    log = FALSE, main = TRUE) {
+  
+  maxscale <- function(x) x / max(abs(x), na.rm = TRUE)
+  
+  # If more than one gene
+  
+  if (length(gene) > 1 && extradata == FALSE) {
+
+    oldpar <- par(no.readonly = TRUE)
+    on.exit(par(oldpar))
+
+    n <- length(gene)
+    rows <- floor(sqrt(n))
+    cols <- ceiling(n / rows)
+    par(mfrow = c(rows, cols), mar = c(1, 1, 3, 1))
+
+    for (g in gene) {
+      scplot5(
+        gene = g,
+        dataset = dataset,
+        xcol = xcol,
+        diverging = diverging,
+        pch = pch,
+        cex = cex,
+        add = FALSE,
+        extradata = FALSE,
+        log = log,
+        main = TRUE
+      )
+    }
+    return(invisible(NULL))
+  }
+
+  # Handling one gene at the time
+  
+  if (extradata == FALSE) {
+    x <- as.numeric(FetchData(dataset, gene)[,1])} 
+  else {
+    x <- gene
+    gene <- deparse(substitute(gene))}
+
+  
+  if (log == TRUE) {
+    x <- log1p(x)}
+  
+  y <- order(abs(x)) #strongest expression last
+
+  
+  if (diverging == TRUE) {
+    x_scaled <- maxscale(x)
+    ycol <- xcol[
+      ceiling(0.00001 + (x_scaled[y] + 1) *(length(xcol) - 1) * 0.5)]} 
+  else {
+    ycol <- xcol[1 + ceiling((length(xcol) - 1) *((x[y] - min(x))/(max(x) - min(x))))]}
+  
+  # Get coordinates
+  umap1 <- dataset@reductions$integratedUMAP@cell.embeddings[,1]
+  umap2 <- dataset@reductions$integratedUMAP@cell.embeddings[,2]
+  
+  # Plot
+  plot(
+    umap1[y], umap2[y],
+    col = ycol, pch = pch, cex = cex,
+    main = gene,
+    xlab = "", ylab = "",
+    xaxt = "n", yaxt = "n",
+    cex.main = 1.6
+  )
+}
+
+```
+
+Hub-locus genes
+
+CTSZ
+
+```{r plot}
+
+scplot5("ENSSSAG00000005903", seu_integrated, sccol)
+
+```
+
+MPPE1
+
+```{r plot}
+
+scplot5("ENSSSAG00000052122", seu_integrated, sccol)
+
+```
+
+GNAI1
+
+```{r plot}
+
+scplot5("ENSSSAG00000099904", seu_integrated, sccol)
+
+```
+
+pak1Ip1
+
+```{r plot}
+
+scplot5("ENSSSAG00000004575", seu_integrated, sccol)
+
+```
+
+endoU
+
+```{r plot}
+
+scplot5("ENSSSAG00000004590", seu_integrated, sccol)
+
+```
+
+FAM111A
+
+```{r plot}
+
+scplot5("ENSSSAG00000004608", seu_integrated, sccol)
+
+```
+
+ZFYVE9
+
+```{r plot}
+
+scplot5("ENSSSAG00000007619", seu_integrated, sccol)
+
+```
+
+
+# Join Layers
+
+```{r layers}
+
+gc()
+
+seu_integrated <- JoinLayers(seu_integrated)
+
+```
+
+
+# Save and load
+
+```{r save}
+
+save(seu_integrated, file = "join_layers_object.RData")
+
+```
+
+```{r Load}
+
+load(file = "join_layers_object.RData")
+
+```
+
+
+# Cluster annotation
+
+## Finding Differntially Expressed Features (cluster biomarkers)
+
+Markers for every cluster compared to the remaining cells
+
+Report only positive ones.
+
+```{r markers}
+
+gc()
+
+seu_markers <- FindAllMarkers(seu_integrated, only.pos = TRUE) %>% 
+  dplyr::filter(avg_log2FC > 1)
+
+seu_cluster_markers <- with(seu_markers, lapply(split(gene, cluster), unique))
+
+```
+
+Remove objects
+
+```{r clean }
+
+rm(seu_markers)
+
+```
+
+
+# Save and load markers
+
+```{r save markers}
+
+save(seu_cluster_markers, file = "cluseter_markers_object.RData")
+
+```
+
+```{r Load markers}
+
+load(file = "cluseter_markers_object.RData")
+
+```
+
+## Known Cell Type Marker Genes
+
+Download genes
+
+```{r donwlaod Ensembl IDs}
+
+mart <- useEnsembl(
+  biomart = "ensembl",
+  dataset = "ssalar_gene_ensembl")
+
+```
+
+Make a function to extract the markers from the excel file
+
+```{r Make function}
+
+process_excel_with_biomaRt <- function(file, mart) {
+
+  # Find all sheets 
+  sheets <- excel_sheets(file)
+
+  # Read all sheets and put them in one table
+  all_markers <- map_dfr(sheets, function(sheet_name) { #make a loop
+    df <- read_excel(file, sheet = sheet_name) %>%  #read sheet
+      clean_names()  #clean up name
+
+    if (!"gene_id" %in% names(df)) { #skip sheets without gene_id ergo GO sheets
+      return(NULL)
+    }
+
+    df %>%
+      mutate(original_order = row_number()) %>% 
+      separate(gene_id, into = c("Gene", "NCBI_ID"), sep = ":") %>% 
+      mutate(
+        NCBI_ID = as.character(NCBI_ID), 
+        sheet = sheet_name) %>% 
+      dplyr::select(sheet, NCBI_ID, original_order)
+    })
+  
+  # Remove duplicates and NA
+  all_markers <- filter(all_markers, !is.na(NCBI_ID))
+  
+  unique_ids <- unique(all_markers$NCBI_ID)
+
+  # BiomaRt conversion
+  conversion <- getBM( 
+    attributes = c("entrezgene_id", "ensembl_gene_id"),
+    filters = "entrezgene_id",
+    values = unique(all_markers$NCBI_ID),
+    mart = mart)
+  
+  conversion$entrezgene_id <- as.character(conversion$entrezgene_id)
+
+  # Put the ensembl IDs into the table 
+  merged <- merge(
+    all_markers,
+    conversion,
+    by.x = "NCBI_ID",
+    by.y = "entrezgene_id",
+    all.x = T)
+  
+  merged <- merged[!is.na(merged$ensembl_gene_id), ]
+  
+  merged <- merged[order(merged$sheet, merged$original_order), ]
+  
+  marker_list <- lapply(split(
+    merged$ensembl_gene_id,
+    merged$sheet),
+    unique)
+  
+  return(marker_list)
+}
+
+```
+
+Run Function
+
+```{r run function}
+
+marker_list <- process_excel_with_biomaRt("Markergenes.XLSX", mart)
+
+rm(mart)
+  
+```
+
+
+# Save and Load
+
+save
+
+```{r save}
+
+save(marker_list, file = "known_markers.Rdata")
+
+```
+
+load
+
+```{r load}
+
+load(file = "known_markers.Rdata")
+
+```
+
+
+## Find overlap
+
+Make a matrix that counts the overlap for every cluster and cell type
+
+```{r overlap}
+
+overlap_clust_known <- sapply(marker_list, function(celltypes_genes) {
+  sapply(seu_cluster_markers, function(cluster_genes) {
+    length(intersect(cluster_genes, celltypes_genes))
+    })
+  })
+
+overlap_clust_known
+
+```
+
+Heatmap of Overlap
+
+```{r heatmap}
+
+pheatmap(
+  overlap_clust_known,
+  color = colorRampPalette(c("white", "blue")) (50), #50 different colors
+  cluster_rows = T, #order based on overlap
+  cluster_cols = T,
+  treeheight_row = 0, #remove lines
+  treeheight_col = 0,
+  display_numbers = F) #do not have numbers
+```
+
+
+## Percent overlap
+
+Calculate by dividing on the number of marker genes found for every cluster
+
+```{r % devided on cluster genes}
+
+overlap_fraction_cluster <- sapply( #loop every cell type
+  marker_list, 
+  function(celltype_genes) { #one list of genes for every cell type - column 
+    sapply(seu_cluster_markers, #loop every cluster
+           function(cluster_genes) { #one list of  genes for every cluster - row
+             length(intersect(cluster_genes, celltype_genes))/length(cluster_genes)
+             }) #find and count all genes that are in both lists, divide with number of marker genes in the cluster
+    })
+
+overlap_fraction_cluster
+
+```
+
+Plot heatmap
+
+```{r heatmap}
+
+pheatmap(
+  overlap_fraction_cluster,
+  color = colorRampPalette(c("white", "red")) (50),
+  cluster_rows = T, 
+  cluster_cols = T,
+  treeheight_row = 0,
+  treeheight_col = 0,
+  display_numbers = F)
+
+```
+
+Calculate by dividing on the number of marker genes found for every cluster
+
+```{r % divided by marker genes}
+
+overlap_fraction_celltype_cluster <- sapply( #loop every cell type
+  marker_list, 
+  function(celltype_genes) { #one list of genes for every cell type - column
+    sapply(seu_cluster_markers, #loop every cluster
+           function(cluster_genes) { #one list of  genes for every cluster - row
+             length(intersect(cluster_genes, celltype_genes))/length(celltype_genes)
+             }) #find and count all genes that are in both lists, divide with number of known marker genes
+    })
+
+overlap_fraction_celltype_cluster
+
+```
+
+Plot heatmap
+
+```{r heatmap}
+
+pheatmap(
+  overlap_fraction_celltype_cluster,
+  color = colorRampPalette(c("white", "purple")) (50),
+  cluster_rows = T, 
+  cluster_cols = T,
+  treeheight_row = 0,
+  treeheight_col = 0,
+  display_numbers = F)
+
+```
+
+## Annotation
+
+```{r annotation}
+
+# Apply is used for matrix, 1 means work row for row, every row is one cluster.
+
+cluster_annotation <- apply(overlap_clust_known, 1, function(x) {
+  if (max(x) < 0.05) { #if the highest % overlap is 0.05, call it uncertain 
+    "Uncertain"
+  } else { #else call it by the name of the cell type with the highest overlap
+    names(which.max(x))
+  }})
+
+cluster_annotation
+
+# Add to seu_integrated
+
+new_labels <- cluster_annotation[as.character(seu_integrated$integratedClusters)]
+names(new_labels) <- colnames(seu_integrated)
+
+seu_integrated$celltype_annotation <- new_labels
+
+```
+
+
+# Save and loade
+
+The annotated Seurat object
+
+save
+
+```{r save}
+
+save(seu_integrated, file = "annotated_seurat.Rdata")
+
+```
+
+load
+
+```{r load}
+
+load(file = "annotated_seurat.Rdata")
+
+```
+
+
+# Plot UMAP annotated
+
+```{r plot}
+
+umap_anot_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", group.by = "celltype_annotation", label = TRUE, repel = TRUE)+ 
+  NoAxes() +
+  theme_void()
+
+umap_anot_plot
+
+```
+
+Put the genotype in to the metadata
+
+```{r genotype to meta}
+
+cc_samples <- c("sample1", "sample2", "sample3", "sample5", "sample7", "sample10", "sample13", "sample14")
+
+tt_samples <- c("sample9", "sample11", "sample12", "sample15", "sample16")
+
+
+seu_integrated$genotype <- ifelse(
+  seu_integrated$orig.ident %in% cc_samples, "CC",
+  ifelse(seu_integrated$orig.ident %in% tt_samples, "TT", NA)) %>% 
+  factor(levels = c("CC", "TT"))
+
+# Set order
+
+seu_integrated$orig.ident <- factor(
+  seu_integrated$orig.ident,
+  levels = c(cc_samples, tt_samples))
+
+```
+
+
+# Cell type composition
+
+Make one CC plot and one TT plot
+
+```{r genotype umap }
+
+genotype_umap_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", group.by = "celltype_annotation", split.by = "genotype", label = T) + 
+  NoAxes() +
+  theme_void()
+
+genotype_umap_plot 
+
+```
+
+Make split on samples
+
+```{r all samples one plot}
+
+all_samples_umap_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", group.by = "celltype_annotation", split.by = "orig.ident", ncol = 4) + 
+  NoAxes() +
+  theme_void()
+
+all_samples_umap_plot
+
+```
+
+Plot all the samples in individual plots
+
+```{r all samples seperate}
+
+samples <- unique(seu_integrated$orig.ident)
+
+xlims <- range(Embeddings(seu_integrated, "integratedUMAP")[,1])
+ylims <- range(Embeddings(seu_integrated, "integratedUMAP")[,2])
+
+for(s in samples) {
+  p <- DimPlot(
+    seu_integrated,
+    reduction = "integratedUMAP", 
+    group.by = "celltype_annotation", 
+    cells = WhichCells(seu_integrated, expression = orig.ident == s)) + 
+    ggtitle(s) + 
+    xlim(xlims) + 
+    ylim(ylims)
+  
+  print(p)
+
+}
+
+
+```
+
+Plot one sample
+
+```{r one sample at the time}
+
+DimPlot(
+  seu_integrated,
+  reduction = "integratedUMAP",
+  group.by = "celltype_annotation",
+  cells = WhichCells(seu_integrated, expression = orig.ident == "sample9"))+
+  xlim(xlims) + 
+  ylim(ylims)
+
+```
+
+
+## Amount of cells per celltypes for each sample
+
+```{r cells per celltype}
+
+cells_in_celltype <- table(seu_integrated$celltype_annotation, seu_integrated$orig.ident)
+
+cells_in_celltype
+
+```
+
+
+## Are the cell composition different based on genotype
+
+
+### Propeller
+
+Found this R function, used specifically to find difference in cell type composition in scRNA-seq data. 
+
+Run propeller
+
+```{r propeller}
+
+propeller_results <- propeller(clusters = seu_integrated$celltype_annotation,
+                          sample = seu_integrated$orig.ident,
+                          group = seu_integrated$genotype)
+
+propeller_results
+
+```
+
+No FDR under 0.05 - no difference based on genotype. 
+
+# Proportions
+
+Calculate the proportions of every cell type
+
+Plot one celltype and see the difference between genotypes
+
+```{r plot}
+
+cell_proportion <- seu_integrated@meta.data %>%
+  count(orig.ident, genotype, celltype_annotation) %>%
+  group_by(orig.ident) %>%
+  mutate(Proportions = n/sum(n)) %>%
+  mutate(Percent = n / sum(n) * 100) %>%
+  ungroup() %>% 
+  mutate(orig.ident = recode(orig.ident, 
+                             "sample1"  = "1CC",
+                             "sample2"  = "2CC",
+                             "sample3"  = "3CC",
+                             "sample5"  = "5CC",
+                             "sample7"  = "7CC",
+                             "sample10" = "10CC",
+                             "sample9"  = "9TT",
+                             "sample11" = "11TT",
+                             "sample12" = "12TT")) %>% 
+  mutate(orig.ident = factor(orig.ident, levels = c("1CC","2CC","3CC","5CC","7CC", "10CC", "9TT","11TT","12TT")))
+
+cell_proportion %>%
+  group_by(orig.ident) %>%
+  summarise(total = sum(Proportions))
+
+```
+
+Plot
+
+```{r plot}
+
+set.seed(14)
+  
+ggplot(subset(cell_proportion, celltype_annotation == "Pillar Cells"),
+       aes(x = genotype, y = Proportions, colour = genotype)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.1) +
+  theme_minimal() +
+  NoLegend() +
+  ggtitle("Pillar Cells")
+
+```
+
+Cell type proportions
+
+```{r proportions plot}
+
+ggplot(cell_proportion, aes(x = celltype_annotation, y = Proportions, color = celltype_annotation, shape = genotype)) +
+  geom_point(size = 2.5, stroke = 1.5, position = position_dodge(width = 0.75)) +
+  scale_shape_manual(values = c(20, 22)) +
+  theme_minimal() +
+  theme(axis.text = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", color = "Cell type", shape = "Genotype")
+
+ ```
+
+Scaled cell type proportions
+
+```{r scaled plot}
+
+cell_proportion_scaled <- cell_proportion %>%
+  group_by(celltype_annotation) %>%
+  mutate(Proportion_scaled =
+           (Proportions - min(Proportions))/
+           (max(Proportions) - min(Proportions)))
+
+ggplot(cell_proportion_scaled, aes(x = celltype_annotation, y = Proportion_scaled, color = celltype_annotation, shape = genotype)) +
+  geom_point(size = 2.5, stroke = 1.5, position = position_dodge(width = 0.75)) +
+  scale_shape_manual(values = c(15, 22)) +
+  theme_minimal() +
+  theme(axis.text = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", color = "Cell type")
+
+
+```
+
+Proportions all samples
+
+```{r prop plot}
+
+ggplot(cell_proportion, aes(x = orig.ident, y = Proportions, fill = celltype_annotation)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Sample", y = "Proportion", fill = "Cell type") +
+  theme_minimal() +
+  labs(x = "Sample")
+
+
+```
+
+Heat map
+
+First, make into a matrix
+
+```{r martrix}
+
+cell_prop_matrix <- cell_proportion %>% 
+  dplyr::filter(!is.na(celltype_annotation)) %>% 
+  dplyr::select(orig.ident, celltype_annotation, Percent) %>% 
+  pivot_wider(names_from = orig.ident,
+              values_from = Percent,
+              values_fill = 0) %>% 
+  column_to_rownames("celltype_annotation") %>% 
+  as.matrix()
+
+```
+
+Heatmap
+
+```{r heatmap}
+
+pheatmap(cell_prop_matrix,
+         color = colorRampPalette(c("white", "violetred"))(100),
+         cluster_rows = T,
+         cluster_cols = F,
+         treeheight_row = 0,
+         treeheight_col = 0,
+         border_color = "grey60",
+         fontsize_row = 10,
+         fontsize_col = 10,
+         display_numbers = T)
+
+```
+
+
