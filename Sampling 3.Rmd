@@ -1340,7 +1340,9 @@ pheatmap(
   cluster_cols = T,
   treeheight_row = 0, #remove lines
   treeheight_col = 0,
-  display_numbers = F) #do not have numbers
+  display_numbers = F, #do not have numbers
+  angle_col = 45)
+
 ```
 
 
