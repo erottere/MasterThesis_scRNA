@@ -1500,9 +1500,10 @@ Make one CC plot and one TT plot
 
 ```{r genotype umap }
 
-genotype_umap_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", group.by = "celltype_annotation", split.by = "genotype", label = T) + 
+genotype_umap_plot <- DimPlot(seu_integrated, reduction = "integratedUMAP", group.by = "celltype_annotation", split.by = "genotype", label = T, label.size = 6) + 
   NoAxes() +
-  theme_void()
+  theme_void() +
+  theme(legend.text = element_text(size = 20))
 
 genotype_umap_plot 
 
@@ -1731,7 +1732,7 @@ Heatmap
 
 pheatmap(cell_prop_matrix,
          color = colorRampPalette(c("white", "violetred"))(100),
-         cluster_rows = T,
+         cluster_rows = F,
          cluster_cols = F,
          treeheight_row = 0,
          treeheight_col = 0,
