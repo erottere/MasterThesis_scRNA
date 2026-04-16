@@ -497,7 +497,7 @@ Run scDoubletFinder
 
 gc()
 
-sce1 <- scDblFinder(sce1) #Can add expected number of doublets
+  sce1 <- scDblFinder(sce1) #Can add expected number of doublets
 
 sce2 <- scDblFinder(sce2) 
 
@@ -1185,6 +1185,7 @@ seu_cluster_markers <- with(seu_markers, lapply(split(gene, cluster), unique))
 
 ```
 
+
 Remove objects
 
 ```{r clean }
@@ -1742,5 +1743,78 @@ pheatmap(cell_prop_matrix,
          display_numbers = T)
 
 ```
+
+
+# Find marker cell for the Pillar cells
+
+Markers for cluster 9 (Pillar cells)
+
+```{r marker pillar}
+
+pillar_markers <- FindMarkers(
+  seu_integrated,
+  ident.1 = 9,
+  ident.2 = NULL,   # compare with all 
+  only.pos = FALSE)  # up and down regulated
+
+pillar_markers %>% 
+  dplyr::arrange(desc(abs(avg_log2FC))) %>% 
+  head(20) %>% 
+  dplyr::filter(avg_log2FC > 1)
+
+```
+
+Plot ENPP2
+
+```{r plot ENPP2}
+
+VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "integratedClusters")
+
+```
+
+
+```{r plot ENPP2}
+seu_integrated$celltype_simple <- ifelse(
+  Idents(seu_integrated) == 9,
+  "Pillar_cells",
+  "Other_cells")
+
+VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_simple")
+
+```
+
+
+Plot endou
+
+```{r plot endou}
+
+VlnPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "integratedClusters")
+
+```
+
+```{r plot endou}
+
+VlnPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "celltype_simple")
+
+```
+
+
+Plot paikip1
+
+```{r plot paikip1}
+
+VlnPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "integratedClusters")
+
+```
+
+```{r plot paikip1}
+
+VlnPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "celltype_simple", layer = "counts")
+
+```
+
+
+
+
 
 
