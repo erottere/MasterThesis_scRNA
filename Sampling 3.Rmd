@@ -1768,20 +1768,57 @@ Plot ENPP2
 
 ```{r plot ENPP2}
 
-VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "integratedClusters")
+VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_annotation", pt.size = 0.1) +
+  geom_violin(aes(fill = "celltype_annotation"), scale = "width", trim = TRUE)
 
 ```
 
 
+
 ```{r plot ENPP2}
+
 seu_integrated$celltype_simple <- ifelse(
   Idents(seu_integrated) == 9,
   "Pillar_cells",
   "Other_cells")
 
-VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_simple")
+VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_simple", cols = c("grey80", "red"), pt.size = 0.1)
 
 ```
+
+
+```{r}
+
+df <- FetchData(seu_integrated, vars = c("ENSSSAG00000036921", "celltype_annotation"))
+
+ggplot(df, aes(x = celltype_annotation, y = ENSSSAG00000036921, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+
+DotPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_annotation") +
+  RotatedAxis()
+
+```
+
+
+```{r}
+ggplot(df, aes(x = celltype_annotation, y = ENSSSAG00000036921, fill = celltype_annotation)) +
+  geom_boxplot() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+
+
+
 
 
 Plot endou
@@ -1799,6 +1836,19 @@ VlnPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "celltype_si
 ```
 
 
+```{r}
+df2 <- FetchData(seu_integrated, vars = c("ENSSSAG00000054135", "celltype_annotation"))
+
+ggplot(df2, aes(x = celltype_annotation, y = ENSSSAG00000054135, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+
+
 Plot paikip1
 
 ```{r plot paikip1}
@@ -1812,8 +1862,6 @@ VlnPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "integratedC
 VlnPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "celltype_simple", layer = "counts")
 
 ```
-
-
 
 
 
