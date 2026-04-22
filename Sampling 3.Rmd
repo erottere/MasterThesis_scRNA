@@ -1745,7 +1745,7 @@ pheatmap(cell_prop_matrix,
 ```
 
 
-# Find marker cell for the Pillar cells
+# Genes in the Pillar cells
 
 Markers for cluster 9 (Pillar cells)
 
@@ -1766,103 +1766,72 @@ pillar_markers %>%
 
 Plot ENPP2
 
-```{r plot ENPP2}
+Violin plot
 
-VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_annotation", pt.size = 0.1) +
-  geom_violin(aes(fill = "celltype_annotation"), scale = "width", trim = TRUE)
+```{r ENPP1 violin}
 
-```
+ENNP2data <- FetchData(seu_integrated, vars = c("ENSSSAG00000036921", "celltype_annotation"))
 
-
-
-```{r plot ENPP2}
-
-seu_integrated$celltype_simple <- ifelse(
-  Idents(seu_integrated) == 9,
-  "Pillar_cells",
-  "Other_cells")
-
-VlnPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_simple", cols = c("grey80", "red"), pt.size = 0.1)
-
-```
-
-
-```{r}
-
-df <- FetchData(seu_integrated, vars = c("ENSSSAG00000036921", "celltype_annotation"))
-
-ggplot(df, aes(x = celltype_annotation, y = ENSSSAG00000036921, fill = celltype_annotation)) +
+ggplot(ENNP2data, aes(x = celltype_annotation, y = ENSSSAG00000036921, fill = celltype_annotation)) +
   geom_violin(scale = "width", trim = TRUE) +
   geom_jitter(size = 0.2, width = 0.2) +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "ENNP2 expression (Log1p nomalized counts)", fill = "Cell type")
 
 ```
 
-```{r}
+Dot plot
 
-DotPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_annotation") +
-  RotatedAxis()
+```{r ENNP2 dot}
 
-```
-
-
-```{r}
-ggplot(df, aes(x = celltype_annotation, y = ENSSSAG00000036921, fill = celltype_annotation)) +
-  geom_boxplot() +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-
-
-
-
-
-
-
-Plot endou
-
-```{r plot endou}
-
-VlnPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "integratedClusters")
-
-```
-
-```{r plot endou}
-
-VlnPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "celltype_simple")
+DotPlot(seu_integrated, features = "ENSSSAG00000036921", group.by = "celltype_annotation") 
 
 ```
 
 
-```{r}
-df2 <- FetchData(seu_integrated, vars = c("ENSSSAG00000054135", "celltype_annotation"))
+Plot endoU
 
-ggplot(df2, aes(x = celltype_annotation, y = ENSSSAG00000054135, fill = celltype_annotation)) +
+```{r endoU violin}
+endoUdata <- FetchData(seu_integrated, vars = c("ENSSSAG00000054135", "celltype_annotation"))
+
+ggplot(endoUdata, aes(x = celltype_annotation, y = ENSSSAG00000054135, fill = celltype_annotation)) +
   geom_violin(scale = "width", trim = TRUE) +
   geom_jitter(size = 0.2, width = 0.2) +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "endoU expression (Log1p nomalized counts)", fill = "Cell type")
 ```
 
+Dot plot
 
+```{r endoU dot}
 
-
-Plot paikip1
-
-```{r plot paikip1}
-
-VlnPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "integratedClusters")
-
-```
-
-```{r plot paikip1}
-
-VlnPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "celltype_simple", layer = "counts")
+DotPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "celltype_annotation") 
 
 ```
 
 
+Plot pak1ip1
+
+```{r pak1ip1 violin}
+pak1ip1data <- FetchData(seu_integrated, vars = c("ENSSSAG00000004575", "celltype_annotation"))
+
+ggplot(pak1ip1data, aes(x = celltype_annotation, y = ENSSSAG00000004575, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "pak1ip1 expression (Log1p nomalized counts)", fill = "Cell type")
+
+```
+
+Dot plot
+
+```{r endoU dot}
+
+DotPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "celltype_annotation") 
+
+```
 
 
