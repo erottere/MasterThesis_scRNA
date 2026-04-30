@@ -1815,6 +1815,7 @@ DotPlot(seu_integrated, features = "ENSSSAG00000054135", group.by = "celltype_an
 Plot pak1ip1
 
 ```{r pak1ip1 violin}
+
 pak1ip1data <- FetchData(seu_integrated, vars = c("ENSSSAG00000004575", "celltype_annotation"))
 
 ggplot(pak1ip1data, aes(x = celltype_annotation, y = ENSSSAG00000004575, fill = celltype_annotation)) +
@@ -1834,4 +1835,66 @@ DotPlot(seu_integrated, features = "ENSSSAG00000004575", group.by = "celltype_an
 
 ```
 
+
+Plot egfra 1
+
+```{r pak1ip1 violin}
+
+egfra1data <- FetchData(seu_integrated, vars = c("ENSSSAG00000003786", "celltype_annotation"))
+
+ggplot(egfra1data, aes(x = celltype_annotation, y = ENSSSAG00000003786, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "egfra expression (Log1p nomalized counts)", fill = "Cell type")
+
+```
+
+
+Plot egfra 2
+
+```{r pak1ip1 violin}
+
+egfra2data <- FetchData(seu_integrated, vars = c("ENSSSAG00000067891", "celltype_annotation"))
+
+ggplot(egfra2data, aes(x = celltype_annotation, y = ENSSSAG00000067891, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "egfra expression (Log1p nomalized counts)", fill = "Cell type")
+
+```
+
+
+Plot IGF reseptor 1
+
+```{r pak1ip1 violin}
+
+igfr1data <- FetchData(seu_integrated, vars = c("ENSSSAG00000093659", "celltype_annotation"))
+
+ggplot(igfr1data, aes(x = celltype_annotation, y = ENSSSAG00000093659, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "igfr1 expression (Log1p nomalized counts)", fill = "Cell type")
+
+```
+
+Plot IGF reseptor 1 v2
+
+```{r pak1ip1 violin}
+
+igfr1v2data <- FetchData(seu_integrated, vars = c("ENSSSAG00000016756", "celltype_annotation"))
+
+ggplot(igfr1v2data, aes(x = celltype_annotation, y = ENSSSAG00000016756, fill = celltype_annotation)) +
+  geom_violin(scale = "width", trim = TRUE) +
+  geom_jitter(size = 0.2, width = 0.2) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(x = "Cell type", y = "igfr1 expression (Log1p nomalized counts)", fill = "Cell type")
+
+```
 
