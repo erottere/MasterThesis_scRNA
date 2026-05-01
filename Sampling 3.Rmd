@@ -1740,6 +1740,7 @@ pheatmap(cell_prop_matrix,
          border_color = "grey60",
          fontsize_row = 10,
          fontsize_col = 10,
+         angle_col = 45
          display_numbers = T)
 
 ```
