@@ -7,7 +7,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-Trying all samples combined!
+Trying all samples from sampling 3 combined!
 
 
 # Set seed
@@ -497,7 +497,9 @@ Run scDoubletFinder
 
 gc()
 
-  sce1 <- scDblFinder(sce1) #Can add expected number of doublets
+set.seed(14)
+
+sce1 <- scDblFinder(sce1) #Can add expected number of doublets
 
 sce2 <- scDblFinder(sce2) 
 
@@ -632,6 +634,25 @@ seu12 <- subset(seu12, subset = scDblFinder.class == 'singlet')
 
 ```
 
+QC tabel
+
+```{r QC tabel}
+
+# Number of cells after doublet removal
+
+cells_after_doublets <- c(
+  sample1 = ncol(seu1),
+  sample2 = ncol(seu2),
+  sample3 = ncol(seu3),
+  sample5 = ncol(seu5),
+  sample7 = ncol(seu7),
+  sample9 = ncol(seu9),
+  sample10 = ncol(seu10),
+  sample11 = ncol(seu11),
+  sample12 = ncol(seu12))
+
+```
+
 
 # Identify and removing Mitochondria
 
@@ -688,6 +709,60 @@ seu12 <- subset(seu12, subset = percent.mt < 1)
 ```
 
 
+```{r QC summary}
+
+# QC summary table
+
+cells_after_mt <- c(
+  sample1 = ncol(seu1),
+  sample2 = ncol(seu2),
+  sample3 = ncol(seu3),
+  sample5 = ncol(seu5),
+  sample7 = ncol(seu7),
+  sample9 = ncol(seu9),
+  sample10 = ncol(seu10),
+  sample11 = ncol(seu11),
+  sample12 = ncol(seu12))
+
+
+qc_summary <- data.frame(
+  Sample = c("sample1", "sample2", "sample3", "sample5",
+             "sample7", "sample9", "sample10",
+             "sample11", "sample12"),
+
+  Raw = c(
+    ncol(sample1_data),
+    ncol(sample2_data),
+    ncol(sample3_data),
+    ncol(sample5_data),
+    ncol(sample7_data),
+    ncol(sample9_data),
+    ncol(sample10_data),
+    ncol(sample11_data),
+    ncol(sample12_data)),
+
+  After_empty_droplet = c(
+    length(keep_barcodes1),
+    length(keep_barcodes2),
+    length(keep_barcodes3),
+    length(keep_barcodes5),
+    length(keep_barcodes7),
+    length(keep_barcodes9),
+    length(keep_barcodes10),
+    length(keep_barcodes11),
+    length(keep_barcodes12)),
+  
+  After_doublet_removal = as.numeric(cells_after_doublets),
+  
+  After_mt_filtering = as.numeric(cells_after_mt))
+  
+
+qc_summary
+
+```
+
+
+
 # Merging the samples
 
 ```{r merge}
@@ -706,20 +781,21 @@ table(seu_merged$orig.ident)
 
 seu_merged$orig.ident <- factor(
   seu_merged$orig.ident,
-  levels = c("sample1", "sample2", "sample3", "sample5",
-             "sample7", "sample9", "sample10",
-             "sample11", "sample12"))
+  levels = c("sample1", "sample2", "sample3", "sample5", "sample7", "sample10", 
+             "sample9", "sample11", "sample12"))
 
 cellnumber_df <- as.data.frame(table(seu_merged$orig.ident))
 colnames(cellnumber_df) <- c("Sample", "Cells")
 
-ggplot(cellnumber_df, aes(x = Sample, y = Cells, fill = Sample)) +
+# Define CC and TT
+cellnumber_df$Genotype <- ifelse(cellnumber_df$Sample %in% c("sample1", "sample2", "sample3", "sample5", "sample7", "sample10"), "CC", "TT")
+
+ggplot(cellnumber_df, aes(x = Sample, y = Cells, fill = Genotype)) +
   geom_bar(stat = "identity") +
   theme_minimal() +
-  labs(x = "Sample", y = "Number of cells") +
+  labs(x = "Sample", y = "Number of cells", fill = "Genotype") +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none")
+    axis.text.x = element_text(angle = 45, hjust = 1))
 
 ```
 
