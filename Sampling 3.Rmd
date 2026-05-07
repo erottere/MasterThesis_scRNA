@@ -793,7 +793,7 @@ cellnumber_df$Genotype <- ifelse(cellnumber_df$Sample %in% c("sample1", "sample2
 ggplot(cellnumber_df, aes(x = Sample, y = Cells, fill = Genotype)) +
   geom_bar(stat = "identity") +
   theme_minimal() +
-  labs(x = "Sample", y = "Number of cells", fill = "Genotype") +
+  labs(x = "Sample", y = "Number of nuclei", fill = "Genotype") +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1))
 
