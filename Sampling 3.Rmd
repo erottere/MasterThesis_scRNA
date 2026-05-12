@@ -168,7 +168,7 @@ save(sum_matrix, file = "all_couts_genes_object.RData")
 
 ```
 
-Downlaod
+Download
 
 ```{r load}
 
@@ -259,7 +259,10 @@ plot_barcode <- function(br_obj, ylab, main_title) {
        ylab = ylab,
        pch = 16,
        col = "#1D6996",
-       main = main_title)
+       main = main_title, 
+        cex.lab = 1.5,
+       cex.axis = 1.5,
+       cex.main = 1.5)
   
   if (!is.null(inflection))
     abline(h = inflection, col = "grey", lty = 2)
